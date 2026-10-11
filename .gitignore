@@ -1,2 +1,7 @@
-data/store.json
 node_modules/
+dist/
+.data/
+.env
+*.log
+test-results/
+playwright-report/
