@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 export async function connectDB() {
+  if (process.env.NODE_ENV === "production" && !process.env.MONGODB_URI)
+    throw Error("MONGODB_URI is required in production");
   const uri = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/bahceni";
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 });
   return uri;

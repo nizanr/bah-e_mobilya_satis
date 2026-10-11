@@ -1,8 +1,13 @@
 import { connectDB } from "./db.js";
 import { createApp, seed } from "./app.js";
 import express from "express";
+import { bootstrapAdmin } from "./bootstrap-admin.js";
 const uri = await connectDB();
 await seed();
+await bootstrapAdmin({
+  email: process.env.ADMIN_EMAIL,
+  password: process.env.ADMIN_PASSWORD,
+});
 const app = createApp(uri);
 if (process.env.NODE_ENV === "production") {
   app.use(express.static("dist"));

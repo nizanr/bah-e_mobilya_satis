@@ -330,3 +330,56 @@ test("concurrent buyers cannot reserve the same last unit", async () => {
   assert.deepEqual(responses.map((r) => r.status).sort(), [200, 409]);
   assert.equal((await Product.findById(last.id)).stock, 0);
 });
+
+test("database health endpoint reports readiness", async () => {
+  const r = await request(app).get("/api/health").expect(200);
+  assert.equal(r.body.ok, true);
+});
+test("production requires strong session secret", () => {
+  const previous = {
+    NODE_ENV: process.env.NODE_ENV,
+    SESSION_SECRET: process.env.SESSION_SECRET,
+  };
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.SESSION_SECRET = "short";
+    assert.throws(() => createApp(uri), /32 characters/);
+  } finally {
+    for (const [name, value] of Object.entries(previous))
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+  }
+});
+test("production behind HTTPS proxy accepts Render origin and sets secure cookie", async () => {
+  const previous = {
+    NODE_ENV: process.env.NODE_ENV,
+    SESSION_SECRET: process.env.SESSION_SECRET,
+    RENDER_EXTERNAL_URL: process.env.RENDER_EXTERNAL_URL,
+  };
+  let a;
+  try {
+    process.env.NODE_ENV = "production";
+    process.env.SESSION_SECRET = "a".repeat(64);
+    process.env.RENDER_EXTERNAL_URL = "https://test.onrender.com";
+    a = createApp(uri);
+    const r = await request(a)
+      .post("/api/auth/login")
+      .set("X-Forwarded-Proto", "https")
+      .set("Origin", "https://test.onrender.com")
+      .send({ email: "u@test.dev", password: "TestPass123!" })
+      .expect(200);
+    assert.match(r.headers["set-cookie"][0], /; Secure/);
+    assert.match(r.headers["set-cookie"][0], /; HttpOnly/);
+    await request(a)
+      .post("/api/auth/login")
+      .set("X-Forwarded-Proto", "https")
+      .set("Origin", "https://evil.example")
+      .send({ email: "u@test.dev", password: "TestPass123!" })
+      .expect(403);
+  } finally {
+    await a?.locals.sessionStore.close();
+    for (const [name, value] of Object.entries(previous))
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+  }
+});

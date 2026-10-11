@@ -5,11 +5,19 @@ import bcrypt from "bcryptjs";
 import Iyzipay from "iyzipay";
 import { User, Product, Order, Design } from "./db.js";
 import crypto from "node:crypto";
+import mongoose from "mongoose";
 export function createApp(uri, { paymentClient } = {}) {
   const app = express();
+  const appUrl = process.env.APP_URL || process.env.RENDER_EXTERNAL_URL;
+  if (process.env.NODE_ENV === "production") app.set("trust proxy", 1);
+  app.get("/api/health", (req, res) =>
+    res
+      .status(mongoose.connection.readyState === 1 ? 200 : 503)
+      .json({ ok: mongoose.connection.readyState === 1 }),
+  );
   const iyzico =
     paymentClient ||
-    ((process.env.IYZICO_API_KEY && process.env.IYZICO_SECRET_KEY)
+    (process.env.IYZICO_API_KEY && process.env.IYZICO_SECRET_KEY
       ? new Iyzipay({
           apiKey: process.env.IYZICO_API_KEY,
           secretKey: process.env.IYZICO_SECRET_KEY,
@@ -26,8 +34,13 @@ export function createApp(uri, { paymentClient } = {}) {
             : reject(Error(r.errorMessage || "Ödeme sağlayıcısı hatası")),
       ),
     );
-  if (process.env.NODE_ENV === "production" && !process.env.SESSION_SECRET)
-    throw Error("SESSION_SECRET is required in production");
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)
+  )
+    throw Error(
+      "SESSION_SECRET must contain at least 32 characters in production",
+    );
   app.locals.sessionStore = MongoStore.create({ mongoUrl: uri });
   app.use(express.json({ limit: "100kb" }));
   app.use(
@@ -37,7 +50,12 @@ export function createApp(uri, { paymentClient } = {}) {
       resave: false,
       saveUninitialized: false,
       store: app.locals.sessionStore,
-      cookie: { httpOnly: true, sameSite: "lax", maxAge: 86400000 },
+      cookie: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 86400000,
+      },
     }),
   );
   app.use("/api", (req, res, next) => {
@@ -45,7 +63,7 @@ export function createApp(uri, { paymentClient } = {}) {
       req.path !== "/payment/callback" &&
       !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
       req.headers.origin &&
-      ![`${req.protocol}://${req.get("host")}`, process.env.APP_URL].includes(
+      ![`${req.protocol}://${req.get("host")}`, appUrl].includes(
         req.headers.origin,
       )
     )
@@ -171,7 +189,7 @@ export function createApp(uri, { paymentClient } = {}) {
         quantity: i.quantity,
       });
     }
-    if (iyzico && !process.env.APP_URL)
+    if (iyzico && !appUrl)
       return res.status(503).json({ error: "Ödeme için APP_URL ayarlanmalı" });
     const reserved = [];
     let o;
@@ -201,7 +219,7 @@ export function createApp(uri, { paymentClient } = {}) {
       return res.status(409).json({ error: e.message });
     }
     if (iyzico) {
-      const origin = process.env.APP_URL;
+      const origin = appUrl;
       if (!origin)
         return res
           .status(503)
@@ -257,12 +275,10 @@ export function createApp(uri, { paymentClient } = {}) {
             { _id: line.id },
             { $inc: { stock: line.quantity } },
           );
-        return res
-          .status(503)
-          .json({
-            error:
-              "Ödeme servisi başlatılamadı; stok iade edildi. Yeniden deneyin.",
-          });
+        return res.status(503).json({
+          error:
+            "Ödeme servisi başlatılamadı; stok iade edildi. Yeniden deneyin.",
+        });
       }
       o.paymentToken = s.token;
       await o.save();
@@ -324,12 +340,10 @@ export function createApp(uri, { paymentClient } = {}) {
       { new: true },
     );
     if (!o)
-      return res
-        .status(409)
-        .json({
-          error:
-            "Yalnızca ödeme bekleyen demo sipariş iptal edilebilir. iyzico siparişinde sağlayıcı mutabakatı gerekir",
-        });
+      return res.status(409).json({
+        error:
+          "Yalnızca ödeme bekleyen demo sipariş iptal edilebilir. iyzico siparişinde sağlayıcı mutabakatı gerekir",
+      });
     for (const i of o.items)
       await Product.updateOne({ _id: i.id }, { $inc: { stock: i.quantity } });
     res.json(o);

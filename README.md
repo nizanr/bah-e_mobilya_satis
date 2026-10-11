@@ -66,3 +66,7 @@ Sandbox anahtarları sağlanmadığı için sağlayıcıyla uçtan uca ödeme he
 Üretim için `SESSION_SECRET` zorunlu; `npm run build` ardından `npm start`. HTTPS sonlandırma, ödeme mutabakatı, yedekleme, sipariş rezervasyon süreleri ve yasal metinler canlı yayın öncesi hazırlanmalıdır. Hazırlanan bulut yapılandırması yayınlama işlemi değildir.
 
 Görsel kaynakları: ana bahçe görseli bu proje için AI ile üretildi; ürün kartları projedeki Three.js modellerinden çizildi. Görseller `public/images` içinde yereldir; harici görsel/font servisine ihtiyaç yoktur.
+
+## İnternette yayınlama
+
+[Render + MongoDB Atlas yayınlama rehberi](docs/YAYINLAMA.md) ve `render.yaml` hazır. Render otomatik oturum anahtarı üretir; sizin yalnızca kendi Atlas bağlantı dizesini güvenli panelde girmeniz gerekir. Hosting hesabı/bağlantısı olmadan bu depo kendiliğinden yayınlanmaz.
