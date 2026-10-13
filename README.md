@@ -1,4 +1,4 @@
-# Bahçeni Tasarla
+# Woody Bambu
 
 Nisa Nur Çakır ve Zeynep Ulusoy'un öneri raporuna göre geliştirilen, fotoğraf üzerinde 3D mobilya yerleştirmeli bahçe mobilyası e-ticaret uygulaması.
 
